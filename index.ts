@@ -24,7 +24,7 @@ const COMPLETIONS = [
   { value: "status", label: "status", description: "Show daemon status" },
   { value: "doctor", label: "doctor", description: "Run end-to-end diagnostics" },
   { value: "permissions", label: "permissions", description: "Show OS permission grants" },
-  { value: "tools", label: "tools", description: "List the mounted driver operations" },
+  { value: "tools", label: "tools", description: "List driver operations" },
   { value: "version", label: "version", description: "Show the installed driver version" },
   { value: "updates", label: "updates", description: "Check for a newer driver release" },
   { value: "help", label: "help", description: "Show command usage" },
@@ -44,8 +44,27 @@ export function parseCuaCommand(input: string): CuaCommand {
   throw new Error(HELP);
 }
 
-function formatFailure(result: { code: number; stdout: string; stderr: string }): string {
-  const detail = (result.stderr || result.stdout).trim() || `exit ${result.code}`;
+type DriverExecResult = Awaited<ReturnType<ExtensionAPI["exec"]>>;
+
+function combineStreams(stdout: string, stderr: string): string {
+  const trimmedStdout = stdout.trim();
+  const trimmedStderr = stderr.trim();
+  if (trimmedStdout && trimmedStderr) {
+    return `${trimmedStdout}\n${trimmedStderr}`;
+  }
+  return trimmedStdout || trimmedStderr;
+}
+
+function formatFailure(result: DriverExecResult): string {
+  const streams = combineStreams(result.stdout, result.stderr);
+  let detail: string;
+  if (result.killed) {
+    detail = streams
+      ? `Command timed out or was terminated (30s limit).\n${streams}`
+      : "Command timed out or was terminated (30s limit).";
+  } else {
+    detail = streams || `exit ${result.code}`;
+  }
   return `${detail}\n\nInstall or repair Cua Driver: ${INSTALL_URL}`;
 }
 
@@ -57,10 +76,11 @@ async function runCommand(pi: ExtensionAPI, command: Exclude<CuaCommand, "help">
   const spec = COMMANDS[command];
   try {
     const result = await pi.exec(DRIVER, [...spec.args], { timeout: COMMAND_TIMEOUT_MS });
+    const ok = result.code === 0 && !result.killed;
     return {
       label: spec.label,
-      output: result.code === 0 ? result.stdout.trim() || "ok" : formatFailure(result),
-      ok: result.code === 0,
+      output: ok ? result.stdout.trim() || "ok" : formatFailure(result),
+      ok,
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

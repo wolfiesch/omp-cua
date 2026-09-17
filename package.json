@@ -10,7 +10,13 @@
   "homepage": "https://github.com/wolfiesch/omp-cua#readme",
   "bugs": "https://github.com/wolfiesch/omp-cua/issues",
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "typecheck": "tsc --noEmit --strict --skipLibCheck --module preserve --moduleResolution bundler --target esnext --types bun index.ts index.test.ts"
+  },
+  "devDependencies": {
+    "@oh-my-pi/pi-coding-agent": "18.2.2",
+    "@types/bun": "1.4.2",
+    "typescript": "7.0.2"
   },
   "keywords": [
     "oh-my-pi",
